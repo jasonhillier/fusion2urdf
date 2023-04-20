@@ -17,7 +17,82 @@ from xml.dom import minidom
 from distutils.dir_util import copy_tree
 import fileinput
 import sys
+import json
 
+_debugFlag = False
+_showProgress = False
+#
+_progressBar = None
+_progressCount = 0
+_json_config = None
+_log_path = None
+
+def loadConfig(path, package_name):
+    global _json_config
+    global _log_path
+
+    _log_path = path
+    os.remove(_log_path + '\\fusion2urdf.log')
+
+    with open(path + '\\fusion2urdf_config.json', 'r') as c_file:
+        _json_config = json.load(c_file)
+    
+    if package_name in _json_config:
+        _json_config = _json_config[package_name]
+        for key in _json_config:
+            showMessage("config key: " + key)
+    else:
+        logMessage("Config not found for %s" % package_name)
+
+def logMessage(message):
+    if _log_path is None: return
+    with open(_log_path + '\\fusion2urdf.log', 'a') as log_file:
+        log_file.write(message + "\n")
+    
+def showProgress(message, val=0, max=0):
+    global _progressBar
+    global _progressCount
+
+    app = adsk.core.Application.get()
+    ui = app.userInterface
+
+    logMessage(message)
+
+    if _showProgress is False: return
+
+    if _progressBar is None:
+        _progressBar = ui.createProgressDialog()
+        _progressBar.show("v1.0", message, 0, 10)
+    if _progressBar.isShowing:
+        _progressBar.message = message
+        _progressBar.progress = ++_progressCount
+    else:
+        _progressBar.show("v1.0", message, 0, 10)
+
+def endProgressBar():
+    if _progressBar is not None: _progressBar.hide()
+
+def showMessage(message, type=None):
+    global _debugFlag
+
+    app = adsk.core.Application.get()
+    ui = app.userInterface
+
+    #always write all messages to log file
+    logMessage(message)
+
+    if _debugFlag is True or type is not None: ui.messageBox(message)
+
+#todo: make recursive
+def override_object(object, newDef):
+    for key in newDef:
+        if key in object: object[key] = newDef[key]
+
+def get_occ_recursive(nodes, allOccs):
+    for node in nodes:
+        allOccs.append(node)
+        if node.component and node.component.occurrences:
+            get_occ_recursive(node.component.occurrences, allOccs)
 
 def export_stl(_app, save_dir):
     """
@@ -54,7 +129,10 @@ def export_stl(_app, save_dir):
             showBodies.append(['root', lst])
 
         occ = adsk.fusion.Occurrence.cast(None)
-        for occ in root.allOccurrences:
+        allOccs = []
+        get_occ_recursive(root.allOccurrences, allOccs)
+
+        for occ in allOccs:
             if not occ.assemblyContext and occ.isLightBulbOn:
                 lst = [body for body in occ.bRepBodies if body.isLightBulbOn and occ.component.isBodiesFolderLightBulbOn]
                 if occ.childOccurrences:
@@ -64,11 +142,18 @@ def export_stl(_app, save_dir):
                     showBodies.append([occ.name, lst])
 
         # get clone body
+        found_base = False
         tmpBrepMng = adsk.fusion.TemporaryBRepManager.get()
         tmpBodies = []
         for name, bodies in showBodies:
             lst = [tmpBrepMng.copy(body) for body in bodies]
             if len(lst) > 0:
+                if 'base_link' in name:
+                    if found_base:
+                        continue
+                    else:
+                        found_base = True
+                logMessage("cloning body %s" % (name))
                 tmpBodies.append([name, lst])
 
         # create export Doc - DirectDesign
@@ -97,6 +182,7 @@ def export_stl(_app, save_dir):
         exportFolder = save_dir + '/meshes'
 
         exportMgr = des.exportManager
+
         for occ in expRoot.allOccurrences:
             if "base_link" in occ.component.name:
                 expName = "base_link"
@@ -104,6 +190,7 @@ def export_stl(_app, save_dir):
                 expName = re.sub('[ :()]', '_', occ.component.name)
             expPath = os.path.join(exportFolder, '{}.stl'.format(expName))
             stlOpts = exportMgr.createSTLExportOptions(occ, expPath)
+            logMessage("exporting mesh %s" % (expPath))
             exportMgr.execute(stlOpts)
 
         # remove export Doc

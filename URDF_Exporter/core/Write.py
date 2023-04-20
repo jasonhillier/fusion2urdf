@@ -12,6 +12,35 @@ from xml.etree.ElementTree import Element, SubElement
 from . import Link, Joint
 from ..utils import utils
 
+def add_link_ref(linkName, jointName, joints_dict, repo, links_xyz_dict, f, inertial_dict, material_dict):
+    
+    app = adsk.core.Application.get()
+    ui = app.userInterface
+
+    #skip if already exists
+    if linkName in links_xyz_dict: return True
+     
+    if linkName not in inertial_dict:
+        ui.messageBox('Joint \'%s\' is missing link %s \n\n Available Links: %s' % (jointName, linkName, ', '.join(inertial_dict)), "Warning")
+        return False
+    
+    center_of_mass = \
+        [ i-j for i, j in zip(inertial_dict[linkName]['center_of_mass'], joints_dict[jointName]['xyz'])]
+    link = Link.Link(name=linkName, xyz=joints_dict[jointName]['xyz'],\
+        center_of_mass=center_of_mass,\
+        repo=repo, mass=inertial_dict[linkName]['mass'],\
+        inertia_tensor=inertial_dict[linkName]['inertia'],
+        material = material_dict[linkName]['material'])
+    
+    utils.showMessage('making link %s' % (link.name))
+
+    links_xyz_dict[link.name] = link.xyz
+    link.make_link_xml()
+    f.write(link.link_xml)
+    f.write('\n')
+
+    return True
+
 def write_link_urdf(joints_dict, repo, links_xyz_dict, file_name, inertial_dict, material_dict):
     """
     Write links information into urdf "repo/file_name"
@@ -52,6 +81,11 @@ def write_link_urdf(joints_dict, repo, links_xyz_dict, file_name, inertial_dict,
         f.write(link.link_xml)
         f.write('\n')
 
+        app = adsk.core.Application.get()
+        ui = app.userInterface
+
+        utils.showMessage('_write Joints List: %s' % (', '.join(joints_dict)))
+
         # others
         for joint in joints_dict:
             num_child = 0
@@ -67,19 +101,16 @@ def write_link_urdf(joints_dict, repo, links_xyz_dict, file_name, inertial_dict,
                       \nBe aware to threat nested componets as a singel component!"
                 % (joints_dict[joint]['child']), "Error!")
                 quit()
-            else: 
-                name = re.sub('[ :()]', '_', joints_dict[joint]['child'])
-                center_of_mass = \
-                    [ i-j for i, j in zip(inertial_dict[name]['center_of_mass'], joints_dict[joint]['xyz'])]
-                link = Link.Link(name=name, xyz=joints_dict[joint]['xyz'],\
-                    center_of_mass=center_of_mass,\
-                    repo=repo, mass=inertial_dict[name]['mass'],\
-                    inertia_tensor=inertial_dict[name]['inertia'],
-                    material = material_dict[name]['material'])
-                links_xyz_dict[link.name] = link.xyz            
-                link.make_link_xml()
-                f.write(link.link_xml)
-                f.write('\n')
+            else:
+                parentLinkName = re.sub('[ :()]', '_', joints_dict[joint]['parent'])
+                childLinkName = re.sub('[ :()]', '_', joints_dict[joint]['child'])
+
+                add_link_ref(parentLinkName, joint, joints_dict, repo, links_xyz_dict, f, inertial_dict, material_dict)
+                add_link_ref(childLinkName, joint, joints_dict, repo, links_xyz_dict, f, inertial_dict, material_dict)
+               
+    
+    utils.showMessage('_done_make_links')
+    #
 
 
 def write_joint_urdf(joints_dict, repo, links_xyz_dict, file_name):
@@ -116,6 +147,9 @@ def write_joint_urdf(joints_dict, repo, links_xyz_dict, file_name):
 whether the connections\nparent=component2=%s\nchild=component1=%s\nare correct or if you need \
 to swap component1<=>component2"
                 % (parent, child, parent, child), "Error!")
+
+                utils.showMessage('Link List: %s' % (', '.join(links_xyz_dict)))
+
                 quit()
                 
             joint = Joint.Joint(name=j, joint_type = joint_type, xyz=xyz, \

@@ -11,8 +11,14 @@ import adsk, re, traceback
 from xml.etree.ElementTree import Element, SubElement
 from ..utils import utils
 
+def get_base_link_name():
+    if 'base_link' in utils._json_config:
+        #utils.logMessage("default base_link is %s" % utils._json_config['base_link'])
+        return utils._json_config['base_link']
+    else:
+        return 'base_link'
+    
 class Link:
-
     def __init__(self, name, xyz, center_of_mass, repo, mass, inertia_tensor, material):
         """
         Parameters
@@ -85,6 +91,21 @@ class Link:
         self.link_xml = "\n".join(utils.prettify(link).split("\n")[1:])
 
 
+def get_occ_recursive(nodes, allOccs):
+    for node in nodes:
+        allOccs.append(node)
+        if node.component and node.component.occurrences:
+            get_occ_recursive(node.component.occurrences, allOccs)
+
+def print_names(nodes):
+
+    names = []
+    for node in nodes:
+        names.append(re.sub('[ :()]', '_', node.name))
+    
+    utils.showMessage('Component List: %s' % (', '.join(names)))
+
+
 def make_inertial_dict(root, msg):
     """      
     Parameters
@@ -102,8 +123,11 @@ def make_inertial_dict(root, msg):
         Tell the status
     """
     # Get component properties.      
-    allOccs = root.occurrences
+    allOccs = []
+    get_occ_recursive(root.occurrences, allOccs)
     inertial_dict = {}
+
+    print_names(allOccs)
     
     for occs in allOccs:
         # Skip the root component.
@@ -122,8 +146,11 @@ def make_inertial_dict(root, msg):
         moment_inertia_world = [_ / 10000.0 for _ in [xx, yy, zz, xy, yz, xz] ] ## kg / cm^2 -> kg/m^2
         occs_dict['inertia'] = utils.origin2center_of_mass(moment_inertia_world, center_of_mass, mass)
         
-        if 'base_link' in occs.component.name:
-            inertial_dict['base_link'] = occs_dict
+        utils.logMessage("[inertial] link name of %s = %s" % (occs.name, occs.component.name))
+        if get_base_link_name() in occs.component.name:
+            if 'base_link' not in inertial_dict:
+                utils.logMessage("<<FOUND base link>>")
+                inertial_dict['base_link'] = occs_dict
         else:
             inertial_dict[re.sub('[ :()]', '_', occs.name)] = occs_dict
 
@@ -158,7 +185,8 @@ def make_material_dict(root, msg):
         str_in = str_in.replace( 'ß', 'ss')
         return str_in
     # Get component properties.      
-    allOccs = root.occurrences
+    allOccs = []
+    get_occ_recursive(root.occurrences, allOccs)
     material_dict = {}
 
     color_dict = {}
@@ -259,8 +287,10 @@ def make_material_dict(root, msg):
         #             color_dict[color_name] = f"{prop.value.red/255} {prop.value.green/255} {prop.value.blue/255} {prop.value.opacity/255}"
         #             break
 
-        if "base_link" in occs.component.name:
-            material_dict['base_link'] = app_dict
+        utils.logMessage("[material] link name of %s = %s" % (occs.name, occs.component.name))
+        if get_base_link_name() in occs.component.name:
+            if 'base_link' not in material_dict:
+                material_dict['base_link'] = app_dict
         else:
             material_dict[re.sub('[ :()]', '_', occs.name)] = app_dict
 

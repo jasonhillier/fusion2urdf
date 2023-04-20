@@ -99,8 +99,17 @@ class Joint:
 
         self.tran_xml = "\n".join(utils.prettify(tran).split("\n")[1:])
 
+def remap_joint(joint_name, joint):
+    if "joint_remaps" not in utils._json_config:
+        utils.logMessage("No joint_remaps definition found.")
+        return
+    
+    if joint_name in utils._json_config["joint_remaps"]:
+        utils.logMessage("Remapping definition for joint %s" % joint_name)
+        utils.override_object(joint, utils._json_config["joint_remaps"][joint_name])
 
-def make_joints_dict(root, msg):
+
+def make_joints_dict(root, components, msg):
     """
     joints_dict holds parent, axis and xyz informatino of the joints
 
@@ -125,8 +134,17 @@ def make_joints_dict(root, msg):
     'PinSlot', 'Planner', 'Ball']  # these are the names in urdf
 
     joints_dict = {}
-    
+
+    allJoints = []
+
     for joint in root.joints:
+        allJoints.append(joint)
+    
+    for comp in components:
+        for joint in comp.joints:
+            allJoints.append(joint)
+    
+    for joint in allJoints:
         if joint.isLightBulbOn :
             joint_dict = {}
             joint_type = joint_type_list[joint.jointMotion.jointType]
@@ -250,6 +268,10 @@ def make_joints_dict(root, msg):
                 except:
                     msg = joint.name + " doesn't have joint origin. Please set it and run again."
                     break
+
+            remap_joint(joint.name, joint_dict)
     
+            utils.logMessage("Joint '%s' definition is %s" % (joint.name, joint_dict))
+
             joints_dict[joint.name] = joint_dict
     return joints_dict, msg

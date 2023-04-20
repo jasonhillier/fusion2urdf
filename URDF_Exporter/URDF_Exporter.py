@@ -71,9 +71,9 @@ def run(context):
 
         appWin.mainloop()
 
+        utils.loadConfig(save_dir, package_name)
         
-
-        
+        utils.showProgress("Exporting %s" % package_name)
         
    
         save_dir= save_dir + '/' + package_name
@@ -87,7 +87,7 @@ def run(context):
         # set dictionaries
         
         # Generate joints_dict. All joints are related to root. 
-        joints_dict, msg = Joint.make_joints_dict(root, msg)
+        joints_dict, msg = Joint.make_joints_dict(root, components, msg)
         if msg != success_msg:
             ui.messageBox(msg, title)
             return 0   
@@ -131,7 +131,9 @@ def run(context):
             utils.update_package_xml(save_dir, package_name)
 
         # Generate STl files        
-        utils.export_stl(app, save_dir)   
+        utils.export_stl(app, save_dir)
+
+        utils.endProgressBar()
 
         ui.messageBox(msg, title)
         
