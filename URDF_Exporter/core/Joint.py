@@ -10,6 +10,9 @@ Modified on Sun Jan 17 2021
 import adsk, re, traceback
 from xml.etree.ElementTree import Element, SubElement
 from ..utils import utils
+import re
+
+_bHasShowRemapJoin = False
 
 class Joint:
     def __init__(self, name, xyz, axis, parent, child, joint_type, upper_limit, lower_limit):
@@ -101,13 +104,41 @@ class Joint:
 
 def remap_joint(joint_name, joint):
     if "joint_remaps" not in utils._json_config:
-        utils.logMessage("No joint_remaps definition found.")
+        global _bHasShowRemapJoin
+        if not bool(_bHasShowRemapJoin):
+            _bHasShowRemapJoin = True
+            utils.logMessage("No joint_remaps definition found.")
         return
     
-    if joint_name in utils._json_config["joint_remaps"]:
-        utils.logMessage("Remapping definition for joint %s" % joint_name)
-        utils.override_object(joint, utils._json_config["joint_remaps"][joint_name])
+    for jointExpName in utils._json_config['joint_remaps']:
+        matches = re.search(jointExpName, joint_name)
+        if bool(matches):
+            if 'parent' in utils._json_config['joint_remaps'][jointExpName] and isinstance(utils._json_config['joint_remaps'][jointExpName]['parent'], str):
+                utils.logMessage("Remapping definition for joint %s" % joint_name)
+                utils.override_object(joint, utils._json_config["joint_remaps"][jointExpName])
+                return
+            else:
+                remap_joint_by_expr(joint, utils._json_config["joint_remaps"][jointExpName])
 
+#get the expression from the matching link
+# ->replace new name of link with expression
+def remap_joint_by_link_item(joint, parentOrChild, jointRemapConfig):
+    if parentOrChild not in jointRemapConfig: return
+    linkExp = jointRemapConfig[parentOrChild]["from"]
+
+    beforeLinkName = joint[parentOrChild]
+
+    matches = re.search(linkExp, beforeLinkName)
+    if bool(matches):
+        remapLinkExp = jointRemapConfig[parentOrChild]["to"]
+        expression = matches.group(1)
+        joint[parentOrChild] = remapLinkExp.replace('?', expression)
+
+        utils.logMessage("Remapping joint %s link %s to link %s" % (parentOrChild, beforeLinkName, joint[parentOrChild]))
+
+def remap_joint_by_expr(joint, jointRemapConfig):
+    remap_joint_by_link_item(joint, 'parent', jointRemapConfig)
+    remap_joint_by_link_item(joint, 'child', jointRemapConfig)
 
 def make_joints_dict(root, components, msg):
     """

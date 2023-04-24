@@ -105,7 +105,7 @@ def run(context):
         material_dict, color_dict, msg = Link.make_material_dict(root, msg)
         if msg != success_msg:
             ui.messageBox(msg, title)
-            return 0  
+            return 0
         
         links_xyz_dict = {} 
         # --------------------
