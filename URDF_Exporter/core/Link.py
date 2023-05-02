@@ -146,13 +146,17 @@ def make_inertial_dict(root, msg):
         moment_inertia_world = [_ / 10000.0 for _ in [xx, yy, zz, xy, yz, xz] ] ## kg / cm^2 -> kg/m^2
         occs_dict['inertia'] = utils.origin2center_of_mass(moment_inertia_world, center_of_mass, mass)
         
-        utils.logMessage("[inertial] link name of %s = %s" % (occs.name, occs.component.name))
-        if get_base_link_name() in occs.component.name:
+
+        refactoredName = re.sub('[ :()]', '_', occs.name)
+        utils.logMessage("[inertial] link name of %s = %s refactored as: %s" % (occs.name, occs.component.name, refactoredName))
+        if occs.component.name.startswith(get_base_link_name()):
             if 'base_link' not in inertial_dict:
                 utils.logMessage("<<FOUND base link>>")
                 inertial_dict['base_link'] = occs_dict
+            else:
+                utils.logMessage("<<WARN>> duplicate base_link reference!")
         else:
-            inertial_dict[re.sub('[ :()]', '_', occs.name)] = occs_dict
+            inertial_dict[refactoredName] = occs_dict
 
     return inertial_dict, msg
 
@@ -288,7 +292,7 @@ def make_material_dict(root, msg):
         #             break
 
         utils.logMessage("[material] link name of %s = %s" % (occs.name, occs.component.name))
-        if get_base_link_name() in occs.component.name:
+        if occs.component.name.startswith(get_base_link_name()):
             if 'base_link' not in material_dict:
                 material_dict['base_link'] = app_dict
         else:

@@ -134,12 +134,15 @@ def export_stl(_app, save_dir):
 
         for occ in allOccs:
             if not occ.assemblyContext and occ.isLightBulbOn:
-                lst = [body for body in occ.bRepBodies if body.isLightBulbOn and occ.component.isBodiesFolderLightBulbOn]
-                if occ.childOccurrences:
-                    for child in occ.childOccurrences:
-                        lst = lst + traverse(child)
-                if len(lst) > 0:
-                    showBodies.append([occ.name, lst])
+                try:
+                    lst = [body for body in occ.bRepBodies if body.isLightBulbOn and occ.component.isBodiesFolderLightBulbOn]
+                    if occ.childOccurrences:
+                        for child in occ.childOccurrences:
+                            lst = lst + traverse(child)
+                    if len(lst) > 0:
+                        showBodies.append([occ.name, lst])
+                except:
+                    logMessage("<WARN> Failed to access subreference within '%s'" % occ.name)
 
         # get clone body
         found_base = False

@@ -21,7 +21,7 @@ def add_link_ref(linkName, jointName, joints_dict, repo, links_xyz_dict, f, iner
     if linkName in links_xyz_dict: return True
      
     if linkName not in inertial_dict:
-        ui.messageBox('Joint \'%s\' is missing link %s \n\n Available Links: %s' % (jointName, linkName, ', '.join(inertial_dict)), "Warning")
+        utils.showMessage('Joint \'%s\' is missing link %s \n\n Available Links: %s' % (jointName, linkName, ', '.join(inertial_dict)), "Warning")
         return False
     
     center_of_mass = \
