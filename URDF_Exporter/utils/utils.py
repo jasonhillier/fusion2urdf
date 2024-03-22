@@ -32,7 +32,10 @@ def loadConfig(path, package_name):
     global _log_path
 
     _log_path = path
-    os.remove(_log_path + '\\fusion2urdf.log')
+    try:
+        os.remove(_log_path + '\\fusion2urdf.log')
+    except:
+        pass
 
     with open(path + '\\fusion2urdf_config.json', 'r') as c_file:
         _json_config = json.load(c_file)
